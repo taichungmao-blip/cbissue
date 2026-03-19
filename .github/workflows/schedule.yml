@@ -30,7 +30,7 @@ jobs:
         env:
           # 將 GitHub Secret 傳遞給 Python 環境變數
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: python 你的程式檔名.py # 這裡請換成你實際的 python 檔案名稱
+        run: python cbissue.py # 這裡請換成你實際的 python 檔案名稱
 
       - name: Commit and push changes
         run: |
