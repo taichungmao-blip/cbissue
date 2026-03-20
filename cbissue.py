@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import io
 import urllib3
+import tempfile
 import os
 
 # 關閉 SSL 憑證警告
@@ -55,10 +56,24 @@ def get_115_fsc_excel_data():
     file_resp = requests.get(file_url, verify=False)
     file_resp.raise_for_status()
     
-    # 讀取 Excel，加入 header=2 指定第三列為標題
-    df = pd.read_excel(io.BytesIO(file_resp.content), header=2)
+    # 從網址判斷是 .xlsx 還是 .xls，如果都沒有就預設給 .xls
+    ext = '.xlsx' if '.xlsx' in file_url.lower() else '.xls'
+    
+    # 建立暫存檔並寫入內容
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+        tmp.write(file_resp.content)
+        tmp_path = tmp.name
+        
+    try:
+        # 讓 pandas 透過真實的暫存檔路徑與副檔名來讀取，指定 header=2
+        df = pd.read_excel(tmp_path, header=2)
+    finally:
+        # 確保讀取完畢或發生錯誤時，都會把暫存檔刪除，不佔用空間
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+            
     return df
-
+    
 def get_col_name(columns, keyword):
     """輔助函式：用關鍵字找實際的欄位名稱 (模糊比對)"""
     for col in columns:
