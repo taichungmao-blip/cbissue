@@ -93,7 +93,7 @@ if __name__ == "__main__":
     col_company = get_col_name(df_data.columns, '公司名稱')
     col_code = get_col_name(df_data.columns, '代號')
     col_type = get_col_name(df_data.columns, '型態')
-    col_amount = get_col_name(df_data.columns, '金額')
+    col_amount = get_col_name(df_data.columns, '金　　　　額')
     col_currency = get_col_name(df_data.columns, '幣別')
     col_receipt = get_col_name(df_data.columns, '收文日期')
     col_effective = get_col_name(df_data.columns, '生效日期')
