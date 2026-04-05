@@ -6,6 +6,7 @@ import io
 import urllib3
 import tempfile
 import os
+import yfinance as yf  # 新增 yfinance 模組來取得股價
 
 # 關閉 SSL 憑證警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -81,6 +82,29 @@ def get_col_name(columns, keyword):
             return col
     return None
 
+def get_stock_price(stock_code, company_type):
+    """利用 yfinance 取得最新股價"""
+    company_type = str(company_type)
+    # 根據上市櫃決定後綴，興櫃股票支援度較差直接略過
+    if '上市' in company_type:
+        symbol = f"{stock_code}.TW"
+    elif '上櫃' in company_type:
+        symbol = f"{stock_code}.TWO"
+    else:
+        return "暫不支援 (非上市櫃)"
+        
+    try:
+        ticker = yf.Ticker(symbol)
+        # 取得最近一天的交易資料
+        hist = ticker.history(period="1d")
+        if not hist.empty:
+            price = hist['Close'].iloc[-1]
+            return f"{price:.2f}"
+        else:
+            return "查無報價"
+    except Exception:
+        return "取得失敗"
+
 if __name__ == "__main__":
     df_data = get_115_fsc_excel_data()
     notified_records = load_notified_records()
@@ -108,11 +132,18 @@ if __name__ == "__main__":
         for index, row in cb_data.iterrows():
             company_name = row[col_company] if col_company else '未知公司'
             case_type = row[col_target] if col_target else '未知案件'
-            stock_code = row[col_code] if col_code else '未知'
             company_type = row[col_type] if col_type else '未知'
             currency = row[col_currency] if col_currency else '未知'
             receipt_date = row[col_receipt] if col_receipt else '未知'
-            effective_date = row[col_effective] if col_effective else '未知'
+            
+            # --- 處理代號：確保移除 pandas 讀取數字時可能產生的 .0 ---
+            stock_code_raw = str(row[col_code]) if col_code else '未知'
+            stock_code = stock_code_raw.split('.')[0] if stock_code_raw != '未知' else '未知'
+            
+            # --- 處理生效日期：移除結尾的 .0 ---
+            effective_date = str(row[col_effective]) if col_effective else '未知'
+            if effective_date.endswith('.0'):
+                effective_date = effective_date[:-2]
             
             # --- 處理金額：轉換為「億」 ---
             amount_val = row[col_amount] if col_amount else '未知'
@@ -137,10 +168,17 @@ if __name__ == "__main__":
             else:
                 amount = '未知'
             
+            # --- 取得最新股價 ---
+            stock_price = get_stock_price(stock_code, company_type)
+            
+            # --- 建立 Yahoo 技術分析連結 ---
+            yahoo_tech_url = f"https://tw.stock.yahoo.com/quote/{stock_code}/technical-analysis"
+            
             # 建立唯一識別碼 (加入收文日期，避免同公司不同次發行被略過)
             record_id = f"{company_name}_{case_type}_{receipt_date}"
             
             if record_id not in notified_records:
+                # 組裝訊息：加入股價、連結，並移除資料來源備註
                 msg = (
                     f"🔔 **新轉換公司債案件通知** 🔔\n"
                     f"**證券代號**：{stock_code}\n"
@@ -151,7 +189,8 @@ if __name__ == "__main__":
                     f"**幣別**：{currency}\n"
                     f"**收文日期**：{receipt_date}\n"
                     f"**生效日期**：{effective_date}\n"
-                    f"*(資料來源：金管會證期局)*"
+                    f"**最新股價**：{stock_price}\n"
+                    f"**技術分析**：{yahoo_tech_url}"
                 )
                 
                 send_discord_notify(msg)
