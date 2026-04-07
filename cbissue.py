@@ -44,7 +44,12 @@ def send_discord_notify(message):
 def get_115_fsc_excel_data():
     """爬取金管會 115 年度申報案件的 Excel 檔案"""
     url = "https://www.sfb.gov.tw/ch/home.jsp?id=1016&parentpath=0,6,52"
-    resp = requests.get(url, verify=False)
+    # 加入 headers 模擬瀏覽器，避免被阻擋回傳 HTML
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+    }
+    
+    resp = requests.get(url, headers=headers, verify=False)
     soup = BeautifulSoup(resp.text, "html.parser")
     
     tables = soup.find_all("table", {"class": "table01 table02"})
@@ -54,10 +59,16 @@ def get_115_fsc_excel_data():
     tds = trs[2].find_all("td") 
     file_url = tds[4].find("a").get("href") 
     
-    file_resp = requests.get(file_url, verify=False)
+    # 處理相對路徑問題，確保取得完整的下載網址
+    if file_url.startswith("/"):
+        file_url = "https://www.sfb.gov.tw" + file_url
+    elif not file_url.startswith("http"):
+        file_url = "https://www.sfb.gov.tw/ch/" + file_url
+        
+    file_resp = requests.get(file_url, headers=headers, verify=False)
     file_resp.raise_for_status()
     
-    # 從網址判斷是 .xlsx 還是 .xls，如果都沒有就預設給 .xls
+    # 從網址判斷是 .xlsx 還是 .xls
     ext = '.xlsx' if '.xlsx' in file_url.lower() else '.xls'
     
     # 建立暫存檔並寫入內容
@@ -66,10 +77,10 @@ def get_115_fsc_excel_data():
         tmp_path = tmp.name
         
     try:
-        # 讓 pandas 透過真實的暫存檔路徑與副檔名來讀取，指定 header=2
-        df = pd.read_excel(tmp_path, header=2, engine='openpyxl')
+        # 取消強制指定 engine='openpyxl'，讓 pandas 依照副檔名自動選擇對應的讀取引擎
+        df = pd.read_excel(tmp_path, header=2)
     finally:
-        # 確保讀取完畢或發生錯誤時，都會把暫存檔刪除，不佔用空間
+        # 確保讀取完畢或發生錯誤時，都會把暫存檔刪除
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
             
