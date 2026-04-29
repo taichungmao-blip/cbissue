@@ -7,6 +7,7 @@ import urllib3
 import tempfile
 import os
 import yfinance as yf  # 新增 yfinance 模組來取得股價
+from urllib.parse import urljoin # 記得在最上面 import 這個
 
 # 關閉 SSL 憑證警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -44,9 +45,10 @@ def send_discord_notify(message):
 def get_115_fsc_excel_data():
     """爬取金管會 115 年度申報案件的 Excel 檔案"""
     url = "https://www.sfb.gov.tw/ch/home.jsp?id=1016&parentpath=0,6,52"
-    # 加入 headers 模擬瀏覽器，避免被阻擋回傳 HTML
+    
+    # 建議加入基本的 User-Agent，降低被阻擋的機率
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
     resp = requests.get(url, headers=headers, verify=False)
@@ -57,30 +59,32 @@ def get_115_fsc_excel_data():
     
     # 抓取第 3 列，第 5 欄裡面的 EXCEL 下載連結
     tds = trs[2].find_all("td") 
-    file_url = tds[4].find("a").get("href") 
+    raw_file_url = tds[4].find("a").get("href")
     
-    # 處理相對路徑問題，確保取得完整的下載網址
-    if file_url.startswith("/"):
-        file_url = "https://www.sfb.gov.tw" + file_url
-    elif not file_url.startswith("http"):
-        file_url = "https://www.sfb.gov.tw/ch/" + file_url
-        
+    # 【修改點 1】確保 URL 是完整的絕對路徑
+    file_url = urljoin(url, raw_file_url)
+    print(f"準備下載的檔案網址: {file_url}") # 讓 GitHub Actions 留存紀錄
+    
     file_resp = requests.get(file_url, headers=headers, verify=False)
     file_resp.raise_for_status()
     
-    # 從網址判斷是 .xlsx 還是 .xls
+    # 【除錯點】印出下載內容的前 100 個字元，確認是不是被擋或是抓到 HTML
+    print(f"下載檔案前 100 Bytes: {file_resp.content[:100]}")
+    
     ext = '.xlsx' if '.xlsx' in file_url.lower() else '.xls'
     
-    # 建立暫存檔並寫入內容
     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
         tmp.write(file_resp.content)
         tmp_path = tmp.name
         
     try:
-        # 取消強制指定 engine='openpyxl'，讓 pandas 依照副檔名自動選擇對應的讀取引擎
-        df = pd.read_excel(tmp_path, header=2)
+        # 【修改點 2】動態決定 engine。如果是 .xls，不能用 openpyxl
+        # 註: 若要讀取舊版 .xls，你的環境需要安裝 xlrd 套件 (pip install xlrd)
+        if ext == '.xlsx':
+            df = pd.read_excel(tmp_path, header=2, engine='openpyxl')
+        else:
+            df = pd.read_excel(tmp_path, header=2, engine='xlrd') # 或者不寫 engine 讓 pandas 自動判斷
     finally:
-        # 確保讀取完畢或發生錯誤時，都會把暫存檔刪除
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
             
