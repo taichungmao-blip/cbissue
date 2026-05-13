@@ -3,7 +3,7 @@ name: Daily CBs Notify
 on:
   schedule:
     # 每天的 UTC 01:30 (台灣早上10點) 和 UTC 04:10 (台灣中午12點) 執行
-    - cron: '0 2,3 * * *'
+    - cron: '0 2,3,4 * * *'
   workflow_dispatch: # 允許你隨時手動點擊按鈕執行測試
 
 jobs:
