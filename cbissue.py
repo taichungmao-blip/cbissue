@@ -71,19 +71,27 @@ def get_115_fsc_excel_data():
     # 【除錯點】印出下載內容的前 100 個字元，確認是不是被擋或是抓到 HTML
     print(f"下載檔案前 100 Bytes: {file_resp.content[:100]}")
     
-    ext = '.xlsx' if '.xlsx' in file_url.lower() else '.xls'
+    # 判斷副檔名，新增對 .ods 的支援
+    file_url_lower = file_url.lower()
+    if '.xlsx' in file_url_lower:
+        ext = '.xlsx'
+    elif '.ods' in file_url_lower:
+        ext = '.ods'
+    else:
+        ext = '.xls'
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
         tmp.write(file_resp.content)
         tmp_path = tmp.name
         
     try:
-        # 【修改點 2】動態決定 engine。如果是 .xls，不能用 openpyxl
-        # 註: 若要讀取舊版 .xls，你的環境需要安裝 xlrd 套件 (pip install xlrd)
+        # 根據副檔名動態決定對應的解析引擎
         if ext == '.xlsx':
             df = pd.read_excel(tmp_path, header=2, engine='openpyxl')
+        elif ext == '.ods':
+            df = pd.read_excel(tmp_path, header=2, engine='odf')
         else:
-            df = pd.read_excel(tmp_path, header=2, engine='xlrd') # 或者不寫 engine 讓 pandas 自動判斷
+            df = pd.read_excel(tmp_path, header=2, engine='xlrd')
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
@@ -132,7 +140,7 @@ if __name__ == "__main__":
     col_company = get_col_name(df_data.columns, '公司名稱')
     col_code = get_col_name(df_data.columns, '代號')
     col_type = get_col_name(df_data.columns, '型態')
-    col_amount = get_col_name(df_data.columns, '金　　　　額')
+    col_amount = get_col_name(df_data.columns, '金    額')
     col_currency = get_col_name(df_data.columns, '幣別')
     col_receipt = get_col_name(df_data.columns, '收文日期')
     col_effective = get_col_name(df_data.columns, '生效日期')
