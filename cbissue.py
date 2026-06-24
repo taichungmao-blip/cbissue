@@ -59,7 +59,7 @@ def get_115_fsc_excel_data():
     
     # 抓取第 3 列，第 5 欄裡面的 EXCEL 下載連結
     tds = trs[2].find_all("td") 
-    raw_file_url = tds[4].find("a").get("href")
+    raw_file_url = tds[5].find("a").get("href")
     
     # 【修改點 1】確保 URL 是完整的絕對路徑
     file_url = urljoin(url, raw_file_url)
